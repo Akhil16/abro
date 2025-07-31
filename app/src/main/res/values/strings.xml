@@ -1,3 +1,9 @@
 <resources>
-    <string name="app_name">anvesh</string>
+    <string name="app_name">abro</string>
+    <string name="back">←</string>
+    <string name="enter_url_or_search">Enter URL or search</string>
+    <string name="reload">⟳</string>
+    <string name="close_current_tab">Close current tab</string>
+    <string name="add_new_tab">Add new tab</string>
+    <string name="favicon">Favicon</string>
 </resources>

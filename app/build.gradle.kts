@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.anvesh"
+    namespace = "com.example.abro"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.anvesh"
+        applicationId = "com.example.abro"
         minSdk = 30
         targetSdk = 36
         versionCode = 1
@@ -36,6 +36,8 @@ android {
 }
 
 dependencies {
+    implementation(libs.gson)
+    implementation(libs.kotlinx.coroutines.android)
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
