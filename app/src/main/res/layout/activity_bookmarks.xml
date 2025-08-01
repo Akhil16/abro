@@ -17,20 +17,20 @@
             android:id="@+id/back_btn"
             android:layout_width="40dp"
             android:layout_height="wrap_content"
-            android:text="←"
-            android:textSize="18sp"
             android:backgroundTint="#444444"
-            android:textColor="#FFFFFF" />
+            android:text="←"
+            android:textColor="#FFFFFF"
+            android:textSize="18sp" />
 
         <TextView
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="Bookmarks"
-            android:textSize="20sp"
-            android:textStyle="bold"
             android:gravity="center"
-            android:textColor="#FFFFFF" />
+            android:text="Bookmarks"
+            android:textColor="#FFFFFF"
+            android:textSize="20sp"
+            android:textStyle="bold" />
 
         <View
             android:layout_width="40dp"

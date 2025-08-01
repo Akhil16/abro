@@ -11,7 +11,7 @@
         android:roundIcon="@mipmap/abro_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Abro">
-        <activity android:name=".MainActivity"
+        <activity android:name=".ui.activities.MainActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -19,11 +19,11 @@
             </intent-filter>
         </activity>
         
-        <activity android:name=".SettingsActivity"
+        <activity android:name=".ui.activities.SettingsActivity"
             android:exported="false"
             android:theme="@style/Theme.Abro" />
             
-        <activity android:name=".BookmarksActivity"
+        <activity android:name=".ui.activities.BookmarksActivity"
             android:exported="false"
             android:theme="@style/Theme.Abro" />
     </application>
