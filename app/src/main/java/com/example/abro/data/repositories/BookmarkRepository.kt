@@ -1,17 +1,12 @@
-package com.example.abro
+package com.example.abro.data.repositories
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.example.abro.data.models.Bookmark
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 
-data class Bookmark(
-    val title: String,
-    val url: String,
-    val timestamp: Long = System.currentTimeMillis()
-)
-
-class BookmarkManager(private val context: Context) {
+class BookmarkRepository(context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences("bookmarks", Context.MODE_PRIVATE)
     private val gson = Gson()
     

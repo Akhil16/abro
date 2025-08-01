@@ -1,11 +1,11 @@
-package com.example.abro
+package com.example.abro.ui.activities
 
-import android.content.Context
-import android.content.Intent
 import android.os.Bundle
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
+import com.example.abro.R
+import com.example.abro.data.repositories.SettingsRepository
 
 class SettingsActivity : AppCompatActivity() {
     
@@ -13,10 +13,13 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var clearDataBtn: Button
     private lateinit var aboutBtn: Button
     private lateinit var backBtn: Button
+    private lateinit var settingsRepository: SettingsRepository
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings)
+        
+        settingsRepository = SettingsRepository(this)
         
         initViews()
         setupListeners()
@@ -34,7 +37,7 @@ class SettingsActivity : AppCompatActivity() {
         backBtn.setOnClickListener { finish() }
         
         nightModeSwitch.setOnCheckedChangeListener { _, isChecked ->
-            saveNightModeSetting(isChecked)
+            settingsRepository.setNightModeEnabled(isChecked)
             applyNightMode(isChecked)
         }
         
@@ -48,14 +51,7 @@ class SettingsActivity : AppCompatActivity() {
     }
     
     private fun loadSettings() {
-        val prefs = getSharedPreferences("browser_settings", Context.MODE_PRIVATE)
-        val isNightMode = prefs.getBoolean("night_mode", false)
-        nightModeSwitch.isChecked = isNightMode
-    }
-    
-    private fun saveNightModeSetting(isNightMode: Boolean) {
-        val prefs = getSharedPreferences("browser_settings", Context.MODE_PRIVATE)
-        prefs.edit().putBoolean("night_mode", isNightMode).apply()
+        nightModeSwitch.isChecked = settingsRepository.isNightModeEnabled()
     }
     
     private fun applyNightMode(isNightMode: Boolean) {
@@ -67,12 +63,7 @@ class SettingsActivity : AppCompatActivity() {
     }
     
     private fun clearBrowserData() {
-        val prefs = getSharedPreferences("browser_prefs", Context.MODE_PRIVATE)
-        prefs.edit().clear().apply()
-        
-        val bookmarkPrefs = getSharedPreferences("bookmarks", Context.MODE_PRIVATE)
-        bookmarkPrefs.edit().clear().apply()
-        
+        settingsRepository.clearBrowserData(this)
         Toast.makeText(this, "Browser data cleared", Toast.LENGTH_SHORT).show()
     }
     
