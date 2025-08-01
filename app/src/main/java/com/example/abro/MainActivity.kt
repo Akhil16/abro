@@ -1,7 +1,9 @@
 package com.example.abro
 
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
@@ -11,12 +13,15 @@ import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
+import android.webkit.DownloadListener
 import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.*
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatDelegate
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.*
@@ -28,7 +33,8 @@ import androidx.core.content.edit
 data class TabInfo(
     var title: String,
     var favicon: Bitmap? = null,
-    var url: String
+    var url: String,
+    var isIncognito: Boolean = false
 )
 
 class MainActivity : AppCompatActivity() {
@@ -41,19 +47,42 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tabSpinner: Spinner
     private lateinit var btnAddTab: ImageButton
     private lateinit var btnCloseTab: ImageButton
+    private lateinit var btnBookmark: ImageButton
+    private lateinit var btnMenu: ImageButton
 
     private val webViews = mutableListOf<WebView>()
     private val tabInfos = mutableListOf<TabInfo>()
     private var currentTabIndex = 0
     private lateinit var spinnerAdapter: ArrayAdapter<TabInfo>
+    private lateinit var bookmarkManager: BookmarkManager
+    private lateinit var downloadHelper: DownloadHelper
 
     private val gson = Gson()
     private val uiScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    
+    private val bookmarkLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val url = result.data?.getStringExtra("url")
+            if (url != null) {
+                getCurrentWebView()?.loadUrl(url)
+            }
+        }
+    }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Apply night mode setting
+        val prefs = getSharedPreferences("browser_settings", Context.MODE_PRIVATE)
+        val isNightMode = prefs.getBoolean("night_mode", false)
+        if (isNightMode) {
+            AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
+        }
+        
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        bookmarkManager = BookmarkManager(this)
+        downloadHelper = DownloadHelper(this)
 
         // Bind views
         webViewContainer = findViewById(R.id.webview_container)
@@ -64,6 +93,8 @@ class MainActivity : AppCompatActivity() {
         tabSpinner = findViewById(R.id.tab_spinner)
         btnAddTab = findViewById(R.id.btn_add_tab)
         btnCloseTab = findViewById(R.id.btn_close_tab)
+        btnBookmark = findViewById(R.id.btn_bookmark)
+        btnMenu = findViewById(R.id.btn_menu)
 
         // Setup spinner adapter with custom spinner item layout for favicon + title
         spinnerAdapter = object : ArrayAdapter<TabInfo>(this, R.layout.item_tab_spinner, tabInfos) {
@@ -105,7 +136,7 @@ class MainActivity : AppCompatActivity() {
 
         // Add/close tab buttons
         btnAddTab.setOnClickListener {
-            addTab("https://www.google.com")
+            showTabOptions()
         }
 
         btnCloseTab.setOnClickListener {
@@ -114,6 +145,16 @@ class MainActivity : AppCompatActivity() {
             } else {
                 closeTab(currentTabIndex)
             }
+        }
+
+        // Bookmark button
+        btnBookmark.setOnClickListener {
+            toggleBookmark()
+        }
+
+        // Menu button
+        btnMenu.setOnClickListener {
+            showMenu()
         }
 
         // Navigation buttons
@@ -147,12 +188,96 @@ class MainActivity : AppCompatActivity() {
         })
     }
 
+    private fun showTabOptions() {
+        val options = arrayOf("New Tab", "New Incognito Tab")
+        val builder = androidx.appcompat.app.AlertDialog.Builder(this)
+        builder.setTitle("Add Tab")
+        builder.setItems(options) { _, which ->
+            when (which) {
+                0 -> addTab("https://www.google.com", isIncognito = false)
+                1 -> addTab("https://www.google.com", isIncognito = true)
+            }
+        }
+        builder.show()
+    }
+
+    private fun toggleBookmark() {
+        val currentUrl = getCurrentWebView()?.url ?: return
+        val currentTitle = getCurrentWebView()?.title ?: getDomainFromUrl(currentUrl)
+        
+        if (bookmarkManager.isBookmarked(currentUrl)) {
+            bookmarkManager.removeBookmark(currentUrl)
+            Toast.makeText(this, "Bookmark removed", Toast.LENGTH_SHORT).show()
+        } else {
+            bookmarkManager.addBookmark(currentTitle, currentUrl)
+            Toast.makeText(this, "Bookmark added", Toast.LENGTH_SHORT).show()
+        }
+        updateBookmarkButton()
+    }
+
+    private fun updateBookmarkButton() {
+        val currentUrl = getCurrentWebView()?.url ?: return
+        if (bookmarkManager.isBookmarked(currentUrl)) {
+            btnBookmark.setImageResource(android.R.drawable.btn_star_big_on)
+        } else {
+            btnBookmark.setImageResource(android.R.drawable.btn_star_big_off)
+        }
+    }
+
+    private fun showMenu() {
+        val options = arrayOf("Bookmarks", "Settings", "Share", "Find in Page")
+        val builder = androidx.appcompat.app.AlertDialog.Builder(this)
+        builder.setTitle("Menu")
+        builder.setItems(options) { _, which ->
+            when (which) {
+                0 -> openBookmarks()
+                1 -> openSettings()
+                2 -> shareCurrentPage()
+                3 -> findInPage()
+            }
+        }
+        builder.show()
+    }
+
+    private fun openBookmarks() {
+        val intent = Intent(this, BookmarksActivity::class.java)
+        bookmarkLauncher.launch(intent)
+    }
+
+    private fun openSettings() {
+        val intent = Intent(this, SettingsActivity::class.java)
+        startActivity(intent)
+    }
+
+    private fun shareCurrentPage() {
+        val currentUrl = getCurrentWebView()?.url ?: return
+        val currentTitle = getCurrentWebView()?.title ?: ""
+        
+        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, "$currentTitle\n$currentUrl")
+            putExtra(Intent.EXTRA_SUBJECT, currentTitle)
+        }
+        startActivity(Intent.createChooser(shareIntent, "Share page"))
+    }
+
+    private fun findInPage() {
+        getCurrentWebView()?.showFindDialog(null, true)
+    }
+
     private fun createTabSpinnerView(position: Int, convertView: View?, parent: ViewGroup): View {
         val view = convertView ?: layoutInflater.inflate(R.layout.item_tab_spinner, parent, false)
         val tabInfo = tabInfos.getOrNull(position)
         val titleView = view.findViewById<TextView>(R.id.tab_title)
         val faviconView = view.findViewById<ImageView>(R.id.tab_favicon)
-        titleView.text = tabInfo?.title ?: ""
+        
+        val displayTitle = if (tabInfo?.isIncognito == true) {
+            "🕶️ ${tabInfo.title}"
+        } else {
+            tabInfo?.title ?: ""
+        }
+        titleView.text = displayTitle
+        
         if (tabInfo?.favicon != null) {
             faviconView.setImageBitmap(tabInfo.favicon)
         } else {
@@ -162,7 +287,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     @SuppressLint("SetJavaScriptEnabled")
-    private fun addTab(initialUrl: String, switchTo: Boolean = true) {
+    private fun addTab(initialUrl: String, switchTo: Boolean = true, isIncognito: Boolean = false) {
         val webView = WebView(this).apply {
             layoutParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
@@ -170,6 +295,19 @@ class MainActivity : AppCompatActivity() {
             )
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
+            
+            // Configure incognito mode
+            if (isIncognito) {
+                settings.cacheMode = android.webkit.WebSettings.LOAD_NO_CACHE
+                clearCache(true)
+                clearFormData()
+                clearHistory()
+            }
+            
+            // Set download listener
+            setDownloadListener { url, userAgent, contentDisposition, mimeType, _ ->
+                downloadHelper.downloadFile(url, userAgent, contentDisposition, mimeType)
+            }
 
             webChromeClient = object : WebChromeClient() {
                 override fun onReceivedIcon(view: WebView?, icon: Bitmap?) {
@@ -190,6 +328,7 @@ class MainActivity : AppCompatActivity() {
                         if (currentTabIndex == idx) {
                             urlBar.setText(url)
                             updateNavButtons()
+                            updateBookmarkButton()
                         }
                         // Update tab title
                         val title = view?.title ?: getDomainFromUrl(url ?: "")
@@ -207,7 +346,8 @@ class MainActivity : AppCompatActivity() {
             TabInfo(
                 title = getDomainFromUrl(initialUrl),
                 favicon = null,
-                url = initialUrl
+                url = initialUrl,
+                isIncognito = isIncognito
             )
         )
         spinnerAdapter.notifyDataSetChanged()
@@ -240,6 +380,7 @@ class MainActivity : AppCompatActivity() {
         currentTabIndex = index
         urlBar.setText(webViews[index].url)
         updateNavButtons()
+        updateBookmarkButton()
         updateTabTitles()
         if (tabSpinner.selectedItemPosition != index) {
             tabSpinner.setSelection(index)
